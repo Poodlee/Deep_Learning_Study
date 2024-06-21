@@ -16,8 +16,9 @@ import matplotlib.pyplot as plt
 # Device configuration
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-config = wandb.config
-
+# Hyper-parameters
+num_epochs = 30
+learning_rate = 0.001
 
 # Image preprocessing modules
 transform = transforms.Compose([
@@ -216,10 +217,23 @@ optimizer_dict = {
 # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer_dict['RMSprop'], mode='min', factor=0.1, verbose=True)
 # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer_dict['AdamW'], mode='min', factor=0.1, verbose=True)
 
+
+train_losses = {}
+train_accuracies = {}
+valid_losses = {}
+valid_accuracies = {}
+
+optimizer_case = ['SGD','Adam','AdaGrad','RMSprop','AdamW']
+for key in optimizer_case:
+  train_losses[key] = []
+  train_accuracies[key] = []
+  valid_losses[key] = []
+  valid_accuracies[key] = []
+
 # train epoch
 for optimizer_name, optimizer in optimizer_dict.items():
   print(optimizer_name)
-  for epoch in range(config.num_epochs):
+  for epoch in range(num_epochs):
     # Use Dropout layer and Batch Norm layer
     model.train()
     correct, count = 0, 0
@@ -238,15 +252,14 @@ for optimizer_name, optimizer in optimizer_dict.items():
         correct += preds.eq(labels).sum().item() # torch.sum(preds == labels)
 
 
-        wandb.log({
-        "epoch": epoch,
-        f"{optimizer_name}_train_loss": train_loss / count,
-        f"{optimizer_name}_train_accuracy": correct / count,
-        })
+        # Train accuracy와 loss 저장
+        train_losses[optimizer_name].append(train_loss / count)
+        train_accuracies[optimizer_name].append(correct / count)
+
         print (f"{optimizer_name} -> [*] Epoch: {epoch} \tStep: {batch_idx}/{len(train_loader)}\tTrain accuracy: {round((correct/count)*100, 4)} \tTrain Loss: {round((train_loss/count)*100, 4)}")
 
 
-    # Don't use Dropout layer and Batch Norm layer (train 과정이 아니므로)
+    # Don't use Dropout layer and Batch Norm layer
     model.eval()
     correct, count = 0, 0
     valid_loss = 0
@@ -261,9 +274,39 @@ for optimizer_name, optimizer in optimizer_dict.items():
             count += labels.size(0)
             correct += preds.eq(labels).sum().item() # torch.sum(preds == labels)
 
-            wandb.log({
-            f"{optimizer_name}_valid_loss": valid_loss / count,
-            f"{optimizer_name}_valid_accuracy": correct / count,
-            })
+            # Validation accuracy와 loss 저장
+            valid_losses[optimizer_name].append(valid_loss / count)
+            valid_accuracies[optimizer_name].append(correct / count)
+
             print (f"{optimizer_name} -> [*] Step: {batch_idx}/{len(test_loader)}\tValid accuracy: {round((correct/count), 4)} \tValid Loss: {round((valid_loss/count), 4)}")
 
+# Loss와 Accuracy 그래프
+markers = {'SGD': 'o', 'Adam': 'x', 'AdaGrad': 's', 'RMSprop': 'D', 'AdamW': '+'}
+
+for key in optimizer_case:
+    plt.plot(train_accuracies[key], marker = markers[key], markevery=100, label = key)
+plt.xlabel("Epoch")
+plt.ylabel("Train_Loss")
+plt.legend()
+plt.show()
+
+for key in optimizer_case:
+    plt.plot(train_accuracies[key],marker = markers[key], markevery=100, label=key)
+plt.xlabel('Epoch')
+plt.ylabel('Train_Accuracy')
+plt.legend()
+plt.show()
+
+for key in optimizer_case:
+    plt.plot(valid_accuracies[key], marker = markers[key], markevery=100, label = key)
+plt.xlabel("Epoch")
+plt.ylabel("Valid_Loss")
+plt.legend()
+plt.show()
+
+for key in optimizer_case:
+    plt.plot(valid_accuracies[key],marker = markers[key], markevery=100, label=key)
+plt.xlabel('Epoch')
+plt.ylabel('Valid_Accuracy')
+plt.legend()
+plt.show()
